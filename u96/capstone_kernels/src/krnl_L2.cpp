@@ -1,6 +1,6 @@
 
-#define N_2 (2) // should be 64, set to 2 for demo
-#define M_2 (2) // should be 32, set to 2 for demo
+#define N_2 (64) // should be 64, set to 2 for demo
+#define M_2 (32) // should be 32, set to 2 for demo
 #define R_2 (1080)
 #define C_2 (1920)
 #define K_2 (5)

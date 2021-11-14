@@ -1,5 +1,5 @@
 
-#define N_3 (2) // should be 32, set to 2 for demo
+#define N_3 (32) // should be 32, set to 2 for demo
 #define M_3 (1)
 #define R_3 (1080)
 #define C_3 (1920)
