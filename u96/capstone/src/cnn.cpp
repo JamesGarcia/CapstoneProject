@@ -23,6 +23,9 @@
 //#include "vadd.h"
 #include "dirent.h"
 
+#include <ctime>
+#include <chrono>
+
 static const int DATA_SIZE = 4096;
 static const std::string error_message =
     "Error: Result mismatch:\n"
@@ -197,8 +200,14 @@ int main(int argc, char* argv[]) {
 
 	//Launch the Kernel
 	std::cout << " ========== START KERNEL ========== " << std::endl;
+    auto startKernel = std::chrono::high_resolution_clock::now();
 	q.enqueueTask(krnl_srcnn);
+    auto finishKernel = std::chrono::high_resolution_clock::now();
 	std::cout << " ========== FINISH KERNEL ========== " << std::endl;
+	auto timeKernel = finishKernel - startKernel;
+	auto timeKernelMilisecs = timeKernel.count() * 1000 * 1000;
+	std::cout << " Kernel Latency (us) > " << timeKernelMilisecs << std::endl;
+	std::cout << " Kernel throughput (MHz) > " << 1 / timeKernelMilisecs << std::endl;
 
 	std::cout << " ========== START WRITEBACK ========== " << std::endl;
 
