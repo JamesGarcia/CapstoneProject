@@ -68,7 +68,7 @@ static const boost_fs::path root = boost_fs::current_path().root_path();
  *          in the specified directory and all subdirectories.
  *
 std::vector<boost_fs::path> get_all(boost_fs::path const & root, std::string const & ext)
-{BE
+{
     std::vector<boost_fs::path> paths;
     if (boost_fs::exists(root) && boost_fs::is_directory(root))
     {
@@ -97,17 +97,6 @@ int main(int argc, char* argv[]) {
 	if(!video.open("/home/root/video.mp4")){
 		std::cout << "[ERROR] -- video file unopenable" << std::endl;
 		return EXIT_FAILURE;
-	}
-
-	// Demo Code -- read a single frame for round trip example
-	// TODO: be able to read the entire video
-	cv::Mat frame;
-	video >> frame;
-	if(frame.empty()){
-		std::cout << "[ERROR] -- video file generated blank frame" << std::endl;
-	}
-	if(frame.rows != 1080 || frame.cols != 1920){
-		std::cout << "[ERROR] -- bad dimensions from video frame" << std::endl;
 	}
 
 	//TARGET_DEVICE macro needs to be passed from gcc command line
@@ -229,17 +218,6 @@ int main(int argc, char* argv[]) {
 
 #endif
 
-	//setting input data
-	for(int row = 0; row<1080; row++){
-		for(int col = 0; col<1920; col++){
-#if PROD
-			ptr_I[row*1920 + col] = frame.at<float>(row, col);
-#else
-			ptr_I[row*1920 + col] = rand();
-#endif
-		}
-	}
-
 	//setting weights data
 	// DEMO: using dummy data
 	// TODO: don't use dummy data
@@ -253,50 +231,140 @@ int main(int argc, char* argv[]) {
 		ptr_W3[i] = ((100.0) * ((float)rand() / RAND_MAX));
 	}
 
-#if PROD
-	// flushes the queue
-	q.finish();
-#endif
+	/**
+	 * Iterative frame processor 
+	 * 
+	 * */
 
-	std::cout << " ========== START KERNEL ========== " << std::endl;
-    auto startKernel = std::chrono::high_resolution_clock::now();
-#if PROD
-    // Data will be migrated to kernel space
-	q.enqueueMigrateMemObjects({buffer_I,buffer_W1,buffer_W2,buffer_W3,buffer_O1,buffer_O2},0/* 0 means from host*/);
-	// this will apply the cnn kernel
-	q.enqueueTask(krnl_srcnn);
-	// The result of the previous kernel execution will need to be retrieved in
-	// order to view the results. This call will transfer the data from FPGA to
-	// source_results vector
-	q.enqueueMigrateMemObjects({buffer_O1,buffer_O2,buffer_O3},CL_MIGRATE_MEM_OBJECT_HOST);
-	// flushes the queue
-	q.finish();
-#else
-	cnn_top(ptr_I, ptr_W1, ptr_W2, ptr_W3, ptr_O1, ptr_O2, ptr_O3);
-#endif
-    auto finishKernel = std::chrono::high_resolution_clock::now();
-	std::cout << " ========== FINISH KERNEL ========== " << std::endl;
-	auto timeKernel = finishKernel - startKernel;
-	auto timeKernelMilisecs = std::chrono::duration_cast<std::chrono::microseconds>(timeKernel).count();
-	std::cout << " Kernel Latency (us) > " << timeKernelMilisecs << std::endl;
-	std::cout << " Kernel throughput (MHz) > " << 1.0 / timeKernelMilisecs << std::endl;
-
-	std::cout << " ========== START WRITEBACK ========== " << std::endl;
-
-#if PROD
-	//write back data
-	for(int row = 0; row<1080; row++){
-		for(int col = 0; col<1920; col++){
-			frame.at<float>(row, col) = ptr_O3[row*1920 + col];
+	cv::Mat frame;
+	do {
+		/**
+		 * Process frame by frame
+		*/
+		video >> frame;
+		if(frame.empty()){
+			std::cout << "[ERROR] -- video file generated blank frame" << std::endl;
 		}
-	}
+
+		if(frame.rows != 1080 || frame.cols != 1920){
+			std::cout << "[ERROR] -- bad dimensions from video frame" << std::endl;
+		}
+
+		//setting input data
+		for(int row = 0; row<1080; row++){
+			for(int col = 0; col<1920; col++){
+#if PROD
+				ptr_I[row*1920 + col] = frame.at<float>(row, col);
 #else
-	std::cout << "No writeback in Test" << std::endl;
+				ptr_I[row*1920 + col] = rand();
+#endif
+			}
+		}
+
+#if PROD
+		// flushes the queue
+		q.finish();
 #endif
 
-	std::cout << " ========== FINISH WRITEBACK ========== " << std::endl;
+		std::cout << " ========== START KERNEL ========== " << std::endl;
+		auto startKernel = std::chrono::high_resolution_clock::now();
+#if PROD
+		// Data will be migrated to kernel space
+		q.enqueueMigrateMemObjects({buffer_I,buffer_W1,buffer_W2,buffer_W3,buffer_O1,buffer_O2},0/* 0 means from host*/);
+		// this will apply the cnn kernel
+		q.enqueueTask(krnl_srcnn);
+		// The result of the previous kernel execution will need to be retrieved in
+		// order to view the results. This call will transfer the data from FPGA to
+		// source_results vector
+		q.enqueueMigrateMemObjects({buffer_O1,buffer_O2,buffer_O3},CL_MIGRATE_MEM_OBJECT_HOST);
+		// flushes the queue
+		q.finish();
+#else
+		cnn_top(ptr_I, ptr_W1, ptr_W2, ptr_W3, ptr_O1, ptr_O2, ptr_O3);
+#endif
+		auto finishKernel = std::chrono::high_resolution_clock::now();
+		std::cout << " ========== FINISH KERNEL ========== " << std::endl;
+		auto timeKernel = finishKernel - startKernel;
+		auto timeKernelMilisecs = std::chrono::duration_cast<std::chrono::microseconds>(timeKernel).count();
+		std::cout << " Kernel Latency (us) > " << timeKernelMilisecs << std::endl;
+		std::cout << " Kernel throughput (MHz) > " << 1.0 / timeKernelMilisecs << std::endl;
+		std::cout << " ========== START WRITEBACK ========== " << std::endl;
+
+#if PROD
+		//write back data
+		for(int row = 0; row<1080; row++){
+			for(int col = 0; col<1920; col++){
+				frame.at<float>(row, col) = ptr_O3[row*1920 + col];
+			}
+		}
+#else
+		std::cout << "No writeback in Test" << std::endl;
+#endif
+
+		std::cout << " ========== FINISH WRITEBACK ========== " << std::endl;
 
 
+
+		//Verify the result
+		// not doing this for demo
+		// TODO: verify the output of the CNN check res
+
+		/*
+		int match = 0;
+		for (int i = 0; i < DATA_SIZE; i++) {
+			int host_result = ptr_a[i] + ptr_b[i];
+			if (ptr_result[i] != host_result) {
+				printf(error_message.c_str(), i, host_result, ptr_result[i]);
+				match = 1;
+				break;
+			}
+		}*/
+#if PROD
+		q.enqueueUnmapMemObject(buffer_I  , ptr_I );
+		q.enqueueUnmapMemObject(buffer_W1 , ptr_W1);
+		q.enqueueUnmapMemObject(buffer_W2 , ptr_W2);
+		q.enqueueUnmapMemObject(buffer_W3 , ptr_W3);
+		q.enqueueUnmapMemObject(buffer_O1 , ptr_O1);
+		q.enqueueUnmapMemObject(buffer_O2 , ptr_O2);
+		q.enqueueUnmapMemObject(buffer_O3 , ptr_O3);
+		q.finish();
+#else
+		free(ptr_I );
+		free(ptr_W1);
+		free(ptr_W2);
+		free(ptr_W3);
+		free(ptr_O1);
+		free(ptr_O2);
+		free(ptr_O3);
+#endif
+
+		// no correctness checking in demo code
+		/*
+		std::cout << "TEST " << (match ? "FAILED" : "PASSED") << std::endl;
+		return (match ? EXIT_FAILURE :  EXIT_SUCCESS);
+		*/
+#if PROD
+		/**
+		 * TODO: stream each frame out to video port
+		 * */
+
+		cv::VideoWriter writer;
+		int codec = cv::VideoWriter::fourcc('M', 'J', 'P', 'G');
+		writer.open("/home/root/video_out.avi", codec, 30.0, frame.size(), frame.type()==CV_8UC3);
+		if(!writer.isOpened()){
+			std::cerr << "couldnt open writer" << std::endl;
+			return 1;
+		}
+
+		//this should write a single framed video out to the file system
+		writer.write(frame);
+#endif
+
+		std::cout << " ========== END OF DEMO ========== " << std::endl;
+
+	}while(frame != NULL);
+
+	return 0;
 
 	//Verify the result
 	// not doing this for demo
@@ -312,45 +380,7 @@ int main(int argc, char* argv[]) {
 			break;
 		}
 	}*/
-#if PROD
-	q.enqueueUnmapMemObject(buffer_I  , ptr_I );
-	q.enqueueUnmapMemObject(buffer_W1 , ptr_W1);
-	q.enqueueUnmapMemObject(buffer_W2 , ptr_W2);
-	q.enqueueUnmapMemObject(buffer_W3 , ptr_W3);
-	q.enqueueUnmapMemObject(buffer_O1 , ptr_O1);
-	q.enqueueUnmapMemObject(buffer_O2 , ptr_O2);
-	q.enqueueUnmapMemObject(buffer_O3 , ptr_O3);
-	q.finish();
-#else
-	free(ptr_I );
-	free(ptr_W1);
-	free(ptr_W2);
-	free(ptr_W3);
-	free(ptr_O1);
-	free(ptr_O2);
-	free(ptr_O3);
-#endif
 
-	// no correctness checking in demo code
-	/*
-	std::cout << "TEST " << (match ? "FAILED" : "PASSED") << std::endl;
-	return (match ? EXIT_FAILURE :  EXIT_SUCCESS);
-	*/
-#if PROD
-	cv::VideoWriter writer;
-	int codec = cv::VideoWriter::fourcc('M', 'J', 'P', 'G');
-	writer.open("/home/root/video_out.avi", codec, 30.0, frame.size(), frame.type()==CV_8UC3);
-	if(!writer.isOpened()){
-		std::cerr << "couldnt open writer" << std::endl;
-		return 1;
-	}
-
-	//this should write a single framed video out to the file system
-	writer.write(frame);
-#endif
-
-	std::cout << " ========== END OF DEMO ========== " << std::endl;
-	return 0;
 
 
 
