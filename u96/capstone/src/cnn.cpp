@@ -319,6 +319,10 @@ int main(int argc, char* argv[]) {
 				break;
 			}
 		}*/
+
+		
+
+
 #if PROD
 		q.enqueueUnmapMemObject(buffer_I  , ptr_I );
 		q.enqueueUnmapMemObject(buffer_W1 , ptr_W1);
@@ -347,7 +351,7 @@ int main(int argc, char* argv[]) {
 		/**
 		 * TODO: stream each frame out to video port
 		 * */
-
+		
 		cv::VideoWriter writer;
 		int codec = cv::VideoWriter::fourcc('M', 'J', 'P', 'G');
 		writer.open("/home/root/video_out.avi", codec, 30.0, frame.size(), frame.type()==CV_8UC3);
