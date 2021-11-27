@@ -236,6 +236,9 @@ int main(int argc, char* argv[]) {
 	 * 
 	 * */
 
+
+
+
 	cv::Mat frame;
 	do {
 		/**
@@ -320,9 +323,6 @@ int main(int argc, char* argv[]) {
 			}
 		}*/
 
-		
-
-
 #if PROD
 		q.enqueueUnmapMemObject(buffer_I  , ptr_I );
 		q.enqueueUnmapMemObject(buffer_W1 , ptr_W1);
@@ -338,7 +338,7 @@ int main(int argc, char* argv[]) {
 		free(ptr_W2);
 		free(ptr_W3);
 		free(ptr_O1);
-		free(ptr_O2);
+		free(ptr_O2); 
 		free(ptr_O3);
 #endif
 
@@ -362,11 +362,14 @@ int main(int argc, char* argv[]) {
 
 		//this should write a single framed video out to the file system
 		writer.write(frame);
+
+		// show frame to display 
+
 #endif
 
 		std::cout << " ========== END OF DEMO ========== " << std::endl;
 
-	}while(frame != NULL);
+	}while(!(frame.empty()));
 
 	return 0;
 
